@@ -8,24 +8,25 @@ let margin = {
 };
 let width = 960 - margin.right - margin.left;
 let height = 500 - margin.bottom - margin.top;
-let data = [];
 
 function parseDate(date) {
   return parseTime(formatTime(d3.isoParse(date)));
 }
 
-function setDomains(data) {
-  x.domain(d3.extent(data, function(d){ return d.updated; }));
-  y.domain(d3.extent(data, function(d){ return d.temperature; }));
-}
+const socket = io.connect('http://localhost:8080');
+
+socket.on('reading', function (d) {
+  d.updated = parseDate(d.updated);
+  data.push(d);
+  render(data);
+});
 
 // create the svg
 let svg = d3.select('body').append('svg')
     .attr("width", width + margin.left + margin.right)
     .attr("height", height + margin.top + margin.bottom)
   .append("g")
-    .attr("transform",
-          "translate(" + margin.left + "," + margin.top + ")");
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
 // x is time scale bound to width
 let x = d3.scaleTime().range([0, width]);
@@ -41,61 +42,62 @@ let line = d3.line()
 let xAxis = d3.axisBottom(x);
 let yAxis = d3.axisLeft(y);
 
-d3.json('http://localhost:8080/readings', function(err, d) {
-  if (err) throw err;
-
-  data = d.readings;
-
-  console.log('Fetched data!', data);
-
-  data.forEach(function(d){
-    // reading sends ISO date so we need to parse it, then format it
-    d.updated = parseDate(d.updated);
-  });
+d3.json('http://localhost:8080/readings', function(err,d){
+  if(err) throw err
   
-  setDomains(data);
+  d.readings.forEach(function(r){
+    r.updated = parseDate(r.updated);
+  })
 
-  // Draw the x axis
-  svg.append("g")
-      .attr("transform", "translate(0," + height + ")")
-      .attr('class', 'x axis')
-      .call(xAxis)
+  let data = d.readings;
+
+  x.domain(d3.extent(data, function(d){ return d.updated; }));
+  y.domain([0,100]);
+
+  svg.append('g') // draw the x axis
+    .attr('class', 'x axis')
+    .attr("transform", "translate(0," + height + ")")
+    .call(xAxis);
+
+  svg.append('g') // draw the y axis
+    .attr('class', 'y axis')
+    .call(yAxis)
   
-  // Draw the y Axis
-  svg.append("g")
-      .attr('class', 'y axis')
-      .call(yAxis)
+  svg.append('path') // draw the line
+     .attr('class', 'line')
+     .attr('d', line(data))
 
-  // Set line path
-  svg.append("path")
-      .data([data])
-      .attr("class", "line")
-      .attr("d", line);
-
-  update(data);
+  
+  render(data)
 });
 
-const socket = io.connect('http://localhost:8080');
+function render(data) {
+  let circle = svg.selectAll('circle').data(data);
 
-socket.on('reading', function (d) {
-  d.updated = parseDate(d.updated);
-  data.push(d);
-  setDomains(data);
-  update(data);
-});
+  x.domain(d3.extent(data, function(d){ return d.updated; }));
+  y.domain([0,100]);
 
-function update(data) {
-  let circle = svg.selectAll("dot").data(data);
+  circle.exit()
+        .attr('class', 'exit')
+        .remove()
 
-  circle.attr('class', 'update');
+  circle.attr('class', 'update')
 
   circle.enter().append('circle')
       .attr('class', 'enter')
-      .attr("cx", function(d) { return x(d.updated); })
-      .attr("cy", function(d) { return y(d.temperature); })
-      .attr("r", 5)
+      .attr('r', 5)
+      .attr('cx', function(d) { return x(d.updated) })
+      .attr('cy', function(d) { return y(d.temperature) })
     .merge(circle)
-      .text(function(d) { return d; })
-  
-  circle.exit().remove();
+
+    svg.select(".line")
+          .transition()
+          .attr("d", line(data));
+      svg.select(".x.axis")
+          .transition()
+          .duration(750)
+          .call(xAxis);
+      svg.select(".y.axis")
+          .transition()
+          .call(yAxis);
 }
