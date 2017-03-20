@@ -53,6 +53,7 @@ server.listen(port, function() {
 arduino.on('open', function(){
     console.log('Serial Port is open!');
 });
+
 arduino.on('data', function(data) {
     console.log('New Data! ' + data);
     let readings = data.split(' ');

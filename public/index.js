@@ -14,7 +14,7 @@ function parseDate(date) {
   return parseTime(formatTime(d3.isoParse(date)));
 }
 
-function setDomains() {
+function setDomains(data) {
   x.domain(d3.extent(data, function(d){ return d.updated; }));
   y.domain(d3.extent(data, function(d){ return d.temperature; }));
 }
@@ -52,9 +52,9 @@ d3.json('http://localhost:8080/readings', function(err, d) {
     // reading sends ISO date so we need to parse it, then format it
     d.updated = parseDate(d.updated);
   });
-
-  setDomains();
   
+  setDomains(data);
+
   // Draw the x axis
   svg.append("g")
       .attr("transform", "translate(0," + height + ")")
@@ -72,33 +72,30 @@ d3.json('http://localhost:8080/readings', function(err, d) {
       .attr("class", "line")
       .attr("d", line);
 
-  // Draw the dots
-  svg.selectAll("dot")
-        .data(data)
-      .enter().append("circle")
-        .attr("r", 5)
-        .attr("cx", function(d) { return x(d.updated); })
-        .attr("cy", function(d) { return y(d.temperature); });
+  update(data);
 });
 
 const socket = io.connect('http://localhost:8080');
 
 socket.on('reading', function (d) {
-
   d.updated = parseDate(d.updated);
   data.push(d);
-
-  let svg = d3.select("body").transition();
-
-  setDomains();
-
-  svg.select(".line")
-      .duration(750)
-      .attr("d", line(data));
-  svg.select(".x.axis")
-      .duration(750)
-      .call(xAxis);
-  svg.select(".y.axis")
-      .duration(750)
-      .call(yAxis);
+  setDomains(data);
+  update(data);
 });
+
+function update(data) {
+  let circle = svg.selectAll("dot").data(data);
+
+  circle.attr('class', 'update');
+
+  circle.enter().append('circle')
+      .attr('class', 'enter')
+      .attr("cx", function(d) { return x(d.updated); })
+      .attr("cy", function(d) { return y(d.temperature); })
+      .attr("r", 5)
+    .merge(circle)
+      .text(function(d) { return d; })
+  
+  circle.exit().remove();
+}
