@@ -8,6 +8,8 @@ let margin = {
 };
 let width = 960 - margin.right - margin.left;
 let height = 500 - margin.bottom - margin.top;
+let data = [];
+let trickler = [];
 
 function parseDate(date) {
   return parseTime(formatTime(d3.isoParse(date)));
@@ -16,9 +18,7 @@ function parseDate(date) {
 const socket = io.connect('http://localhost:8080');
 
 socket.on('reading', function (d) {
-  d.updated = parseDate(d.updated);
-  data.push(d);
-  render(data);
+  console.log('new data!', d)
 });
 
 // create the svg
@@ -49,10 +49,10 @@ d3.json('http://localhost:8080/readings', function(err,d){
     r.updated = parseDate(r.updated);
   })
 
-  let data = d.readings;
+  data = d.readings;
 
   x.domain(d3.extent(data, function(d){ return d.updated; }));
-  y.domain([0,100]);
+  y.domain([0,50]);
 
   svg.append('g') // draw the x axis
     .attr('class', 'x axis')
@@ -62,42 +62,39 @@ d3.json('http://localhost:8080/readings', function(err,d){
   svg.append('g') // draw the y axis
     .attr('class', 'y axis')
     .call(yAxis)
-  
-  svg.append('path') // draw the line
-     .attr('class', 'line')
-     .attr('d', line(data))
 
-  
-  render(data)
+  render(data);
 });
 
-function render(data) {
-  let circle = svg.selectAll('circle').data(data);
+function render(data){
+  let path = svg.selectAll('.line')
+      .data([data])
+
+  let circle = svg.selectAll('circle')
+      .data(data)
 
   x.domain(d3.extent(data, function(d){ return d.updated; }));
-  y.domain([0,100]);
+  y.domain([0,50]);
 
-  circle.exit()
-        .attr('class', 'exit')
-        .remove()
+  path.exit().remove();
+  
+  path.enter().append('path')
+      .attr('class', 'line')
+    .merge(path)
+      .attr('d', line)
 
-  circle.attr('class', 'update')
+  circle.exit().remove()
 
   circle.enter().append('circle')
-      .attr('class', 'enter')
       .attr('r', 5)
-      .attr('cx', function(d) { return x(d.updated) })
-      .attr('cy', function(d) { return y(d.temperature) })
     .merge(circle)
-
-    svg.select(".line")
-          .transition()
-          .attr("d", line(data));
-      svg.select(".x.axis")
-          .transition()
-          .duration(750)
-          .call(xAxis);
-      svg.select(".y.axis")
-          .transition()
-          .call(yAxis);
+      .attr('cx', function(d){ return x(d.updated) })
+      .attr('cy', function(d){ return y(d.temperature) })
+      .attr('r', 5)
 }
+/*
+setInterval(function(){
+  trickler.push(data.pop());
+  console.log('trick' + trickler);
+  render(trickler);
+}, 5000) */
