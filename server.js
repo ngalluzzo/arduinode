@@ -11,7 +11,6 @@ const arduino = new SerialPort(process.argv[2], {
     baudRate: 9600,
     parser: SerialPort.parsers.readline('\n')
 });
-
 mongoose.connect('mongodb://localhost/test');
 app.use(cors());
 app.use(express.static('public'));

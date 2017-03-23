@@ -9,7 +9,6 @@ let margin = {
 let width = 960 - margin.right - margin.left;
 let height = 500 - margin.bottom - margin.top;
 let data = [];
-let trickler = [];
 
 function parseDate(date) {
   return parseTime(formatTime(d3.isoParse(date)));
@@ -18,7 +17,10 @@ function parseDate(date) {
 const socket = io.connect('http://localhost:8080');
 
 socket.on('reading', function (d) {
-  console.log('new data!', d)
+  console.log('new data!', d);
+  d.updated = parseDate(d.updated);
+  data.unshift();
+  render(data);
 });
 
 // create the svg
@@ -28,73 +30,86 @@ let svg = d3.select('body').append('svg')
   .append("g")
     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-// x is time scale bound to width
-let x = d3.scaleTime().range([0, width]);
+let x = d3.scaleTime().range([0, width]); // x is time scale bound to width
+let y = d3.scaleLinear().range([height, 0]); // y is linear scale bound to height
 
-// y is linear scale bound to height
-let y = d3.scaleLinear().range([height, 0]);
+let xAxis = d3.axisBottom(x); // create an x axis
+let yAxis = d3.axisLeft(y); // create a y axis
 
-// create the line
-let line = d3.line()
-  .x(function(d){ return x(d.updated); }) // x returns reading date
-  .y(function(d){ return y(d.temperature); }) // y returns temperature reading
+let tLine = d3.line() // create a new d3 line
+  .x(function(d){ return x(d.updated); }) // x maps to reading date
+  .y(function(d){ return y(d.temperature); }) // y maps to temperature reading
 
-let xAxis = d3.axisBottom(x);
-let yAxis = d3.axisLeft(y);
+let hLine = d3.line() // create a new d3 line
+  .x(function(d){ return x(d.updated); }) // x maps to reading date
+  .y(function(d){ return y(d.humidity); }) // y maps to humidity reading
 
-d3.json('http://localhost:8080/readings', function(err,d){
+d3.json('http://localhost:8080/readings', function(err,d){ // get new json data
   if(err) throw err
   
   d.readings.forEach(function(r){
-    r.updated = parseDate(r.updated);
+    r.updated = parseDate(r.updated); // parse the date for d3
   })
 
   data = d.readings;
 
-  x.domain(d3.extent(data, function(d){ return d.updated; }));
-  y.domain([0,50]);
+  x.domain(d3.extent(data, function(d){ return d.updated; })); // x domain is extent of dates
+  y.domain([0,70]); // y is hard-coded for now... TODO: set to lowest / highest temp or humidity reading
 
   svg.append('g') // draw the x axis
-    .attr('class', 'x axis')
-    .attr("transform", "translate(0," + height + ")")
-    .call(xAxis);
+    .attr('class', 'x axis') // give it class .x.axis
+    .attr("transform", "translate(0," + height + ")") // move it to the bottom
+    .call(xAxis); // call the x axis we created earlier
 
   svg.append('g') // draw the y axis
-    .attr('class', 'y axis')
-    .call(yAxis)
+    .attr('class', 'y axis') //give it class .y.axis
+    .call(yAxis) //  call the y axis we created earlier
 
-  render(data);
+  render(data); // do the initial render
 });
 
 function render(data){
-  let path = svg.selectAll('.line')
-      .data([data])
+  x.domain(d3.extent(data, function(d){ return d.updated; })); // x domain is extent of NEW dates
+  y.domain([0,70]); // y is hard-coded for now... TODO: set to NEW lowest / highest temp or humidity reading
 
-  let circle = svg.selectAll('circle')
-      .data(data)
-
-  x.domain(d3.extent(data, function(d){ return d.updated; }));
-  y.domain([0,50]);
-
-  path.exit().remove();
+  let t_path = svg.selectAll('.temperature.line') //select the temperature line
+      .data([data]); // assign it the new data
   
-  path.enter().append('path')
-      .attr('class', 'line')
-    .merge(path)
-      .attr('d', line)
+  let h_path = svg.selectAll('.humidity.line') //select the humidity line
+      .data([data]); // assign it the new data
 
-  circle.exit().remove()
+  t_path.enter().append('path') //create the initial temperature path
+    .merge(t_path) //merge new line with any existing line
+      .attr('class', 'temperature line') //give it class .temperature.line
+      .style('stroke', 'red') //give it a red stroke
+      .attr('d', tLine) //map the path with the temperature line we created earlier
+ 
+//  h_path.style('stroke', 'green') // update the existing humidity line and give it a green stroke
 
-  circle.enter().append('circle')
-      .attr('r', 5)
-    .merge(circle)
+  h_path.enter().append('path') //create the initial temperature path
+    .merge(h_path) //merge new line with any existing line
+      .attr('class', 'humidity line') //give it class .humidity.line
+      .attr('d', hLine) //map the path with the humidity line we created earlier
+/*
+  let t_circle = svg.selectAll('.temperature.circle')
+      .data(data)
+  let h_circle = svg.selectAll('.humidity.circle')
+      .data(data)
+ 
+  t_circle.exit().remove();
+  h_circle.exit().remove();
+
+  t_circle.enter().append('circle')
+      .attr('r', 1)
+    .merge(t_circle)
       .attr('cx', function(d){ return x(d.updated) })
       .attr('cy', function(d){ return y(d.temperature) })
-      .attr('r', 5)
+
+  h_circle.enter().append('circle')
+      .attr('r', 1)
+    .merge(h_circle)
+      .attr('cx', function(d){ return x(d.updated) })
+      .attr('cy', function(d){ return y(d.humidity) })
+
+*/
 }
-/*
-setInterval(function(){
-  trickler.push(data.pop());
-  console.log('trick' + trickler);
-  render(trickler);
-}, 5000) */
